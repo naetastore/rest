@@ -77,14 +77,8 @@ $db['default'] = array(
 	'dsn'	=> '',
 	'hostname' => 'localhost',
 	'username' => 'root',
-	// root
-	// id12757774_andinaeta
 	'password' => '',
-	// ''
-	// mrlk4328
 	'database' => 'naetastore',
-	// naetastore
-	// id12757774_andinaeta
 	'dbdriver' => 'mysqli',
 	'dbprefix' => '',
 	'pconnect' => FALSE,
