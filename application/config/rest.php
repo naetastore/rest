@@ -603,4 +603,13 @@ $config['allow_any_cors_domain'] = FALSE;
 | e.g. $config['allowed_origins'] = ['http://www.example.com', 'https://spa.example.com']
 |
 */
-$config['allowed_cors_origins'] = ['http://localhost:3000', 'https://naetastore.github.io'];
+$_web_apps=[];
+$ci=get_instance();
+$data = $ci->db->get('keys')->result_array();
+$i=0;
+foreach($data as $d){
+  $_web_apps[$i] = $d['web_app'];
+  $i++;
+}
+$_web_apps = array_merge($_web_apps, ['http://localhost:3000']);
+$config['allowed_cors_origins'] = $_web_apps;

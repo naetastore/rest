@@ -11,47 +11,32 @@ class User_model extends CI_Model {
 		return $this->db->get_where('users', ['username' => $username])->row_array();
 	}
 
-	public function updateUser($data, $username) {
-		$user = $this->db->get_where('users', ['username' => $username])->row_array();
-		$userdata = [];
-		if ($data['name']) {
-			$userdata = $userdata += ['name' => $data['name']];
-		}
-		if ($data['address']) {
-			$userdata = $userdata += ['address' => $data['address']];
-		}
-		if ($data['phonenumber']) {
-			/* Apakah contact yang diupdate masih sama dengan yang lama?
-			* kalau sama biarkan
-			* & kalau enggak Buat contact baru ke tabel contacts
-			*/ $phonenumber = $data['phonenumber'];
-			
-			$existed = $user['phonenumber'] !== $phonenumber && $user['phonenumber'] !== null;
-			if ($existed) {
-				$oldContact = $this->db->get_where('contacts', ['user_id' => $user['id'], 'phonenumber' => $phonenumber])->num_rows();
-				
-				if ($oldContact < 1) {
+	public function updateUser($data, $user) {
+		$_data=[];
+		if (isset($data['password'])) $_data['password'] = $data['password'];
+		if (isset($data['name'])) $_data['name'] = $data['name'];
+		if (isset($data['address'])) $_data['address'] = $data['address'];
+		if (isset($data['phonenumber']))
+		{
+			$init_contact = strlen($user['phonenumber']) < 1 && $data['phonenumber'] !== $user['phonenumber'];
+			if ($init_contact) {
+				$_data['phonenumber'] = $data['phonenumber']; //update in to: table users
+			}else{
+				$contact_existed = $this->db->get_where('contacts', ['user_id' => $user['id'], 'phonenumber' => $data['phonenumber']]);				
+				if ($contact_existed->num_rows() < 1) {
 					$contact = [
-						'phonenumber' => $phonenumber,
-						'user_id' => $user['id'],
-						'created' => time()
+						'phonenumber' 	=> $data['phonenumber'],
+						'user_id' 		=> $user['id'],
+						'created' 		=> time()
 					];
-					$this->db->insert('contacts', $contact);
-
-					$subject = "Kamu baru saja menambahkan Nomor baru " . $data['phonenumber'];
-					$message = "Nomor sebelumnya tetap disimpan sebagai Nomor utama, adalah " . $user['phonenumber'] . ".";
-					notification($subject, $message, 2, $user['id']);
+					$this->db->insert('contacts', $contact); //insert in to: table contacts
 				}
 
-				$userdata = $userdata += ['phonenumber' => $user['phonenumber']];
-			}
-			else
-			{
-				$userdata = $userdata += ['phonenumber' => $data['phonenumber']];
+				$_data['phonenumber'] = $user['phonenumber']; //replace: source
 			}
 		}
 
-		$this->db->update('users', $userdata, ['username' => $username]);
+		$this->db->update('users', $_data, [ 'id' => $user['id'] ]);
 		return $this->db->affected_rows();
 	}
 	

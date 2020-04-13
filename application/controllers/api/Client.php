@@ -15,13 +15,28 @@ class Client extends REST_Controller
 	public function index_post()
 	{
 		$data = [
+			'mont' => date('F', time()),
+			'year' => date('y', time())
+		];
+		$visitor = $this->db->get_where('visitors', $data);
+		if ($visitor->num_rows() < 1) {
+			$data['count'] = 1;
+			$this->db->insert('visitors', $data);
+		}else{
+			$data['count'] = $visitor->row_array()['count'] + 1;
+			$this->db->update('visitors', $data, [
+				'mont' => date('F', time()),
+				'year' => date('y', time())
+			]);
+		}
+
+		$data = [
 			'userAgent'   => $this->post('userAgent'),
 			'geoLocation' => $this->post('geoLocation'),
 			'created' 	  => time()
 		];
 
 		if ($this->client->createClient($data) > 0) {
-			// activities('create', 'clients');
 			$this->response([
             	'status' => true,
             	'message' => 'new data has been created.'

@@ -6,6 +6,9 @@ require APPPATH . 'libraries/REST_Controller.php';
 class User extends REST_Controller
 {
 	
+	private $is_admin = 2;
+	private $is_consumer = 3;
+	
 	public function __construct()
 	{
 		parent::__construct();
@@ -17,119 +20,107 @@ class User extends REST_Controller
 		$username = $this->get('username');
 		$password = $this->get('password');
 
-		if (strlen($username) < 1) {
-			$this->response([
-            	'status' => false,
-            	'message' => 'Provide an username'
-        	], REST_Controller::HTTP_BAD_REQUEST);
-		}
-
-		if (strlen($password) < 1) {
-			$this->response([
-            	'status' => false,
-            	'message' => 'Provide an password'
-        	], REST_Controller::HTTP_BAD_REQUEST);
-		}
-
 		$user = $this->user->getUser($username);
 
-		if ($user) {
-			if (password_verify($password, $user['password'])) {
-				$secondaryPhone = $this->db->get_where('contacts', ['user_id' => $user['id']])->result_array();
-				$userdata = [
-					'name' 				=> $user['name'],
-	            	'userName' 			=> $user['username'],
-	            	'roleId' 			=> $user['role_id'],
-	            	'primaryPhone' 		=> $user['phonenumber'],
-	            	'secondaryPhone' 	=> $secondaryPhone,
-	            	'address' 			=> $user['address'],
-	            	'avatar'			=> $user['avatar'],
-	            	'dateCreated' 		=> date('d F Y', $user['created'])
-				];
-				$this->response([
-	            	'status' => true,
-	            	'user' => true,
-	            	'data' => $userdata
-	        	], REST_Controller::HTTP_OK);
-			} else {
-				$this->response([
-	            	'status' => false,
-	            	'message' => 'Wrong password!'
-        		], REST_Controller::HTTP_BAD_REQUEST);
-			}
-		} else {
-			$this->response([
-            	'status' => false,
-            	'message' => 'Username is not registered!'
-        	], REST_Controller::HTTP_NOT_FOUND);
-		}
+		if (!$user) $this->_failedAPIResponse('This user is not registered!');
+		if (!password_verify($password, $user['password'])) $this->_failedAPIResponse('Wrong password! please try again.');
+
+		$this->_successAPIResponse($msg = null, $data = rewrapp($user));
 	}
 
 	public function index_post()
 	{
-		$user = $this->db->get_where('users', ['username' => $this->post('username')])->num_rows();
-		
-		if ($user > 0) {
-			$this->response([
-            	'status' => false,
-            	'message' => 'This username has already registered!'
-        	], REST_Controller::HTTP_BAD_REQUEST);
-		}
-		else
-		{
-			if (strlen($this->post('password')) < 5) {
-				$this->response([
-	            	'status' => false,
-	            	'message' => 'Password too short!'
-	        	], REST_Controller::HTTP_BAD_REQUEST);
-			} else {
-				$data = [
-					'username' 	=> htmlspecialchars($this->post('username'), TRUE),
-					'password' 	=> password_hash($this->post('password'), PASSWORD_DEFAULT),
-					'avatar'	=> 'default_avatar.svg',
-					'role_id' 	=> 2,
-					'entry'		=> create_entry(),
-					'created' 	=> time()
-				];
+		$username = $this->post('username');
+		$password = $this->post('password');
 
-				if ($this->user->createUser($data) > 0) {
-					activities('create', 'users');
-					$this->response([
-		            	'status' => true,
-		            	'message' => 'Congratulation! your account has been created.'
-		        	], REST_Controller::HTTP_CREATED);
-				} else {
-					$this->response([
-		            	'status' => false,
-		            	'message' => 'Failed to created new data!'
-		        	], REST_Controller::HTTP_BAD_REQUEST);
-				}
-			}
+		if (isset($username) && !isset($password) | strlen($username) > 0 && strlen($password) < 1)
+		{
+			if ($this->_duplicatecheck($username)) $this->_successAPIResponse('username is ready to insert.', $data = null);
+		}
+
+		if (isset($username) && isset($password) | strlen($username) > 0 && strlen($password) > 0)
+		{
+			if ($this->_passwordcheck($password)) $this->_register();
 		}
 	}
 
-	public function index_put()
+	private function _duplicatecheck($username)
 	{
-		$userdata = [
-			'name' => $this->put('name'),
-			'address' => $this->put('address'),
-			'phonenumber' => $this->put('phonenumber')
+		$user = $this->db->get_where('users', [ 'username' => $username ]);
+		if ($user->num_rows() > 0)
+		{
+			$this->_failedAPIResponse('This username has already registered!');
+		}else{
+			return TRUE;
+		}
+	}
+
+	private function _passwordcheck($pass)
+	{
+		if (strlen($pass) < 5)
+		{
+			$this->_failedAPIResponse('Password too short!');
+		}else{
+			return TRUE;
+		}
+	}
+
+	private function _register()
+	{
+		$username = $this->post('username');
+		$password = $this->post('password');
+
+		$this->_duplicatecheck($username);
+		$this->_passwordcheck($password);
+
+		$data = [
+			'username' 	=> htmlspecialchars($username, TRUE),
+			'password' 	=> password_hash($password, PASSWORD_DEFAULT),
+			'role_id' 	=> $this->is_consumer,
+			'entry'		=> create_entry(),
+			'created' 	=> time()
 		];
 
-		$affected = $this->user->updateUser($userdata, $this->put('username'));
-		
-		if ($affected){
-			// activities('update', 'users');
-			$this->response([
-            	'status' => true,
-            	'message' => 'User data has been changed!'
-        	], REST_Controller::HTTP_OK);
-		} else {
-			$this->response([
-            	'status' => true,
-            	'message' => 'Everything is up to date.'
-        	], REST_Controller::HTTP_OK);
-		}
+		if ($this->user->createUser($data) < 1) $this->_failedAPIResponse('Failed to created new data!');
+
+		activities('create', 'users');
+		$user = $this->db->get_where('users', [ 'username' => $username ])->row_array();
+
+		$data = [
+			'username' 			=> $user['username'],
+			'role'	 			=> $user['role_id'],
+			'created'	 		=> date('d F Y', $user['created'])
+		];
+
+		$this->_createdAPIResponse('Congratulation! you account has been created.', $data);
+	}
+
+	private function _createdAPIResponse($msg, $data)
+	{
+		$response = [ 'status' => true ];
+
+		if (isset($msg)) $response['message'] = $msg;
+		if (isset($data)) $response['user'] = $data;
+
+		$this->response($response, REST_Controller::HTTP_CREATED);
+	}
+
+	private function _successAPIResponse($msg, $data)
+	{
+		$response = [ 'status' => true ];
+
+		if (isset($msg)) $response['message'] = $msg;
+		if (isset($data)) $response['user'] = $data;
+
+		$this->response($response, REST_Controller::HTTP_OK);
+	}
+
+	private function _failedAPIResponse($msg)
+	{
+		$this->response([
+        	'status' => false,
+        	'message' => $msg
+    	], REST_Controller::HTTP_BAD_REQUEST);
 	}
 	
 }

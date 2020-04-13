@@ -14,15 +14,13 @@ class Denotif extends REST_Controller
 
 	public function index_get()
 	{
-		/** parameter
-		 */ $username = $this->get('username');
+		$username = $this->get('username');
 		$password = $this->get('password');
 
 		if (is_logedin($username, $password)) {
 			$id = $this->get('id');
-
-			$affected = $this->notif->deleteNotification($id);
 			
+			$affected = $this->notif->deleteNotification($id);
 			if ($affected){
 				$this->response([
 	            	'status' => true,

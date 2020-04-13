@@ -5,14 +5,16 @@ require APPPATH . 'libraries/REST_Controller.php';
 
 class Uporder extends REST_Controller
 {
+	private $is_admin = 2;
+	private $is_consumer = 3;
+
 	private $update_automatic = 0;
 	private $delete_automatic = 0;
 
 	private $data;
 	private $user;
-	private $rules;
 
-	private $on_session;
+	private $admin;
 
 	private $topic;
 	private $subject;
@@ -23,10 +25,10 @@ class Uporder extends REST_Controller
 		parent::__construct();
 		$this->load->model('Order_model', 'order');
 
-		$settings = $this->db->get('settings')->row_array();
+		// $settings = $this->db->get('settings')->row_array();
 		
-		$this->update_automatic = $settings['update_automatic'];
-		$this->delete_automatic = $settings['delete_automatic'];
+		// $this->update_automatic = $settings['update_automatic'];
+		// $this->delete_automatic = $settings['delete_automatic'];
 	}
 
 	public function index_post()
@@ -34,39 +36,43 @@ class Uporder extends REST_Controller
 		// parameter
 		$username = $this->post('username');
 		$password = $this->post('password');
-		$consumername = $this->post('consumername');
+		$consumer_name = $this->post('consumername');
 
 		$on_session = get_user($username, $password);
-		$is_admin = $on_session['role_id'] < 2;
 
-		if ($is_admin) {
-			$this->on_session = $on_session;
-			
-			$user = $this->db->get_where('users', ['username' => $consumername])->row_array();
-			$this->user = $user;
+		if ($on_session['role_id'] != $this->is_admin) $this->_failedAPIResponse('Something went wrong!');
+		
+		$dataAccess = [
+			'role_id' 	=> $on_session['role_id'],
+			'status' 	=> 'in_order',
+			'action' 	=> 'confirm'
+		];
+		$queryAccess = get_order_access($dataAccess);
+		if ($queryAccess->num_rows() < 1) $this->_failedAPIResponse('Something went wrong!');
 
-			$this->topic = $user['entry'];
-			
-			$this->data = [ 'purchased' => 1, 'readed' => 1 ];
-			$this->rules = [
-				'user_id'	=> $user['id'],
-				'purchased'	=> 0,
-				'entry'		=> $user['entry']
-			];
+		$this->admin = $on_session;
+		
+		$user = $this->db->get_where('users', ['username' => $consumer_name])->row_array();
+		$this->user = $user;
 
-			$this->_update();
-		} else {
-			$this->_failedAPIResponse('Something went wrong!.');
-		}
+		$this->topic = $user['entry'];
+		
+		$data = [ 'purchased' => 1, 'readed' => 1 ];
+		$rules = [
+			'user_id'	=> $user['id'],
+			'purchased'	=> 0,
+			'entry'		=> $user['entry']
+		];
+		$this->_update($data, $rules);
 	}
 
-	private function _update()
+	private function _update($data, $rules)
 	{
-		$affected = $this->order->updateOrder($this->data, $this->rules);
+		$affected_rows = $this->order->updateOrder($data, $rules);
 
-		if ($affected) {
+		if ($affected_rows > 0) {
 			$this->_updated_success();
-		} else {
+		}else{
 			$this->_failedAPIResponse('Order failed to update.');
 		}
 	}
@@ -83,22 +89,21 @@ class Uporder extends REST_Controller
 				'purchased'	=> 1,
 				'entry'		=> $this->user['entry']
 			];
-
 			delete_automatic($rules);
 		}
 
-		$this->subject = "Pesanan sudah kami konfirmasi";
-		$this->message = "Jika kamu belum juga segera mendapatkan pesanan silahkan hubungi Admin " . $this->on_session['name'] . " ke Nomor " . $this->on_session['phonenumber'] . ".";
-		$this->_sendNotif(2);
-
+		$this->subject = "Pesanan telah kami konfirmasi";
+		$this->message = "Jika Anda belum juga segera mendapatkan pesanan silahkan hubungi Admin " . $this->admin['name'] . " melalui Nomor telepon " . $this->admin['phonenumber'] . ".";
+		$this->_sendNotif($this->is_consumer);
+		
 		$this->subject = "Pesanan " . $this->user['name'] . " berhasil dikonfirmasi";
 		$this->message = "";
-		$this->_sendNotif(1);
+		$this->_sendNotif($this->is_admin);
 
-		// Update with new Entry
+		// * Update entry
 		$this->db->update('users', [ 'entry' => create_entry() ], [ 'id' => $this->user['id'] ]);
 
-		$this->_successAPIResponse('Order has been updated!');
+		$this->_successAPIResponse('Order has been confirmed!');
 	}
 
 	private function _sendNotif($role_id)
@@ -108,12 +113,14 @@ class Uporder extends REST_Controller
 			'message'		=> $this->message,
 			'topic'			=> $this->topic
 		];
-
 		$existed = $this->db->get_where('notifications', $rules)->num_rows() > 0;
 
 		if (!$existed) {
 			notification($rules['subject'], $rules['message'], $role_id, $this->user['id'], $this->topic);
 		}
+
+		$this->subject = "";
+		$this->message = "";
 	}
 
 	private function _successAPIResponse($msg)

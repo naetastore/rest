@@ -14,14 +14,7 @@ class Banner extends REST_Controller
 
 	public function index_get()
 	{
-		/* parameter
-		*/ $id = $this->get('id');
-
-		if ($id === null) {
-			$banner = $this->banner->getBanner();
-		} else {
-			$banner = $this->banner->getBanner($id);
-		}
+		$banner = $this->banner->getBanner();
 
 		if ($banner) {
 			$this->response([

@@ -3,13 +3,15 @@
 class Product_model extends CI_Model {
 
 	public function getProduct($id = null) {
-		if ($id === null) {
-			return $this->db->get('products')->result_array();
+		if ($id == null) {
+			$product = $this->db->get_where('products', ['is_ready' => 1])->result_array();
 		}
 		else
 		{
-			return $this->db->get_where('products', ['id' => $id])->row_array();
+			$product = $this->db->get_where('products', ['id' => $id, 'is_ready' => 1])->row_array();
 		}
+
+		return $product;
 	}
 
 	public function deleteProduct($id) {

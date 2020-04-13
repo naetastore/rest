@@ -5,6 +5,9 @@ require APPPATH . 'libraries/REST_Controller.php';
 
 class Order extends REST_Controller
 {
+	private $is_admin = 2;
+	private $is_consumer = 3;
+
 	private $on_session;
 	private $data;
 	private $product;
@@ -27,113 +30,157 @@ class Order extends REST_Controller
 		$entry = $this->get('entry');
 
 		$on_session = get_user($username, $password);
-		if ($on_session) {
-			// inti fungsi
-			$this->on_session = $on_session;
+		if (!$on_session) $this->_failedAPIResponse('something went wrong!');
 
-			$is_admin = FALSE;
-			if ($on_session['role_id'] == 1) {
-				$is_admin = TRUE;
-			}
+		$this->on_session = $on_session;
 
-			$is_member = FALSE;
-			if ($on_session['role_id'] > 1) {
-				$is_member = TRUE;
-			}
+		$is_admin 	 = FALSE;	if ($on_session['role_id'] == $this->is_admin) $is_admin = TRUE;
+		$is_consumer = FALSE; 	if ($on_session['role_id'] == $this->is_consumer) $is_consumer = TRUE;
+		$get_entry 	 = FALSE; 	if ($entry) $get_entry = TRUE;
 
-			$get_entry = FALSE;
-			if ($entry) {
-				$get_entry = TRUE;
-			}
+		$control['is_admin'] 	= $is_admin;
+		$control['is_consumer'] = $is_consumer;
+		$control['get_entry'] 	= $get_entry;
 
-			$control = [
-				'is_admin' => $is_admin,
-				'is_member'	=> $is_member,
-				'get_entry'	=> $get_entry
-			];
-			$ok = $this->_get_control($control);
+		$response = $this->_get_control($control);
 
-			if ($ok) {
-				$this->response([
-		        	'status' 	=> true,
-		        	'order' 	=> $ok['order'],
-		        	'user'		=> $ok['user']
-		    	], REST_Controller::HTTP_OK);
-			} else {
-				$this->response([
-		        	'status' => false,
-		        	'message' => 'order not found!'
-		    	], REST_Controller::HTTP_NOT_FOUND);
-			}
-		} else {
-			$this->_failedAPIResponse('something went wrong!');
+		if (!$response) {
+			$this->response([
+				'status' => false,
+				'message' => 'no data to display'
+			], REST_Controller::HTTP_NOT_FOUND);
 		}
+
+		$this->response($response, REST_Controller::HTTP_OK);
 	}
-	
+
 	private function _get_control($control)
 	{
-		$controls = [
-			'is_admin' => $control['is_admin'],
-			'is_member'	=> $control['is_member'],
-			'get_entry'	=> $control['get_entry']
-		];
 		$options = [
-			'username' => $this->get('username'),
-			'entry' => $this->get('entry')
+			'user_id' 	=> $this->on_session['id'],
+			'entry'		=> $this->get('entry')
 		];
-		$order = $this->order->getOrder($controls, $options);
+		$order = $this->order->getOrder($control, $options);
 
-		if (!$order)
+		if (!$order) return FALSE;
+
+		//  ==USER ACCESS==
+		if ($control['get_entry'])
 		{
-			return FALSE;
-		}
+			$dataAccess = ['role_id' => $this->on_session['role_id']];
+			// default
+			$user_access['hasDelete'] = FALSE;
+			$user_access['hasConfirm'] = FALSE;
+			$user_access['hasCancel'] = FALSE;
 
-		$on_session = $this->on_session;
-		$on_session['hasConfirm'] = FALSE;
-		$on_session['hasDelete'] = FALSE;
+			$canceled = $order['product'][0]['canceled'] > 0 && $order['product'][0]['purchased'] < 1;
 
-		if ($control['is_admin'])
-		{
-			$on_session = [];
-
-			if ($control['get_entry'])
+			if (!$canceled) // status: in_order
 			{
-				$user_id = $order[0]['user_id'];
-				$deleted = $order[0]['deleted'] > 0;
-				$purchased = $order[0]['purchased'] > 0;
-				$canceled = $deleted && !$purchased;
+				$dataAccess['status'] = 'in_order';
+				$dataAccess['action'] = 'confirm';
+				$queryAccess = get_order_access($dataAccess);
+				if ($queryAccess->num_rows() > 0) $user_access['hasConfirm'] = TRUE; //*
 
-				$on_session = $this->db->get_where('users', ['id' => $user_id])->row_array();
-
-				if (!$canceled && !$purchased)
-				{
-					$on_session['hasConfirm'] = TRUE;
-					$on_session['hasDelete'] = FALSE;
+				$dataAccess['action'] = 'cancel';
+				$queryAccess = get_order_access($dataAccess);
+				if ($queryAccess->num_rows() > 0) $user_access['hasCancel'] = TRUE;
+			}
+			if ($canceled) // status: canceled
+			{
+				$dataAccess['status'] = 'canceled';
+				$dataAccess['action'] = 'hard_delete';
+				$queryAccess = get_order_access($dataAccess);
+				if ($queryAccess->num_rows() > 0) $user_access['hasDelete'] = TRUE;
+				
+				if ($queryAccess->num_rows() < 1) {
+					$dataAccess['status'] = 'canceled';
+					$dataAccess['action'] = 'soft_delete';
+					$queryAccess = get_order_access($dataAccess);
+					if ($queryAccess->num_rows() > 0) $user_access['hasDelete'] = TRUE;
 				}
-
-				if ($canceled | $purchased)
-				{
-					$on_session['hasDelete'] = TRUE;
+			}
+			if ($order['product'][0]['purchased'] > 0) //status: purchased
+			{
+				$dataAccess['status'] = 'purchased';
+				$dataAccess['action'] = 'hard_delete';
+				$queryAccess = get_order_access($dataAccess);
+				if ($queryAccess->num_rows() > 0) $user_access['hasDelete'] = TRUE;
+				
+				if ($queryAccess->num_rows() < 1) {
+					$dataAccess['status'] = 'purchased';
+					$dataAccess['action'] = 'soft_delete';
+					$queryAccess = get_order_access($dataAccess);
+					if ($queryAccess->num_rows() > 0) $user_access['hasDelete'] = TRUE;
+				}
+			}
+			if ($order['product'][0]['deleted'] > 0 && $order['product'][0]['purchased'] > 0) //status: purchased_deleted
+			{
+				$dataAccess['status'] = 'purchased_deleted';
+				$dataAccess['action'] = 'hard_delete';
+				$queryAccess = get_order_access($dataAccess);
+				if ($queryAccess->num_rows() > 0) $user_access['hasDelete'] = TRUE;
+				
+				if ($queryAccess->num_rows() < 1) {
+					$dataAccess['status'] = 'purchased_deleted';
+					$dataAccess['action'] = 'soft_delete';
+					$queryAccess = get_order_access($dataAccess);
+					if ($queryAccess->num_rows() > 0) $user_access['hasDelete'] = TRUE;
 				}
 			}
 		}
 
-		if ($control['is_member'])
+		//  ==UI CONFIG==
+		$dataConfig['role_id'] = $this->on_session['role_id'];
+		// default
+		$ui_config['hasName'] = TRUE;
+		$ui_config['hasAvatar'] = TRUE;
+
+		$dataConfig['ui'] = 'name';
+		$queryConfig = get_ui_config($dataConfig);
+		if ($queryConfig->num_rows() > 0) $ui_config['hasName']	= FALSE;
+		
+		$dataConfig['ui'] = 'avatar';
+		$queryConfig = get_ui_config($dataConfig);
+		if ($queryConfig->num_rows() > 0) $ui_config['hasAvatar'] = FALSE;
+
+		//  ==CONSUMER DETAIL==
+		if ($control['get_entry'] && $control['is_consumer'])
 		{
-			$on_session['hasDelete'] = TRUE;
+			$on_session = $this->on_session;
+			$on_session = rewrapp($on_session);
+		}
+		if ($control['get_entry'] && $control['is_admin']) {
+			$user_id = $order['product'][0]['user_id'];
+			$on_session = $this->db->get_where('users', ['id' => $user_id])->row_array();
+			$on_session = rewrapp($on_session);
 		}
 
-		return [
-			'order' => $order,
-			'user'	=> $on_session
-		];
+		// clear data
+		if ($control['get_entry'])
+		{
+			$_order['consumer'] = $on_session;
+			$_order['summary'] 	= $order;
+
+			$response = [
+				'status' 		=> true,
+				'order' 		=> $_order,
+				'useraccess' 	=> $user_access
+			];
+		}else{
+			$response = [
+				'status' 	=> true,
+				'order' 	=> $order,
+				'uiconfig'	=> $ui_config
+			];
+		}
+		return $response;
 	}
 
 	public function index_post()
 	{
-		// parameter
-		$username 	= $this->post('username');
-		$password 	= $this->post('password');
+		$username 	= $this->post('username'); //*
+		$password 	= $this->post('password'); //*
 
 		$product_id = $this->post('product_id');
 		$name 		= $this->post('name');
@@ -141,139 +188,113 @@ class Order extends REST_Controller
 		$qty 		= $this->post('qty');
 
 		$on_session = get_user($username, $password);
-		if ($on_session)
+		if (!$on_session) $this->_failedAPIResponse('something went wrong!');
+
+		$in_order = $this->db->order_by('created', 'ASC')->get_where('orders', [ 'entry' => $on_session['entry'] ]);
+		if ($in_order->num_rows() > 0 && time() - $in_order->row_array()['created'] > (60*60*24)) {
+			$this->_failedAPIResponse("Waktu diperbolehkan menambah jumlah item dibatasi 24 jam,\r\nmohon tunggu sampai kami mengkonfirmasi pesanan.");
+		}
+
+		$data = [
+			'product_id' 	=> $product_id,
+			'name' 			=> $name,
+			'price' 		=> $price,
+			'qty' 			=> $qty,
+
+			'user_id' 		=> $on_session['id'],
+			'readed' 		=> 0,
+			'entry'			=> $on_session['entry']
+		];
+
+		$this->_productvalidity($data);
+
+		$this->data 		= $data;
+		$this->on_session 	= $on_session;
+		$this->topic 		= $on_session['entry'];
+
+		$this->_existchecks($product_id);
+
+		$this->_order();
+	}
+
+	private function _productvalidity($data)
+	{
+		if (!isset($data['product_id'], $data['qty'], $data['price'], $data['name'])) $this->_failedAPIResponse('No containing data!');
+		
+		$_qty = (int) $data['qty'];
+		if ($_qty < 1) $this->_failedAPIResponse('The product qty is ' . $_qty . ', Please check you product');
+
+		$_price = (int) $data['price'];
+		if ($_price < 1) $this->_failedAPIResponse('The product price is ' . $_price . ', Please check you product');
+	}
+
+	private function _existchecks($product_id)
+	{
+		$product = $this->db->get_where('products', [ 'id' => $product_id ])->row_array();
+
+		$rules = [
+			'user_id' 		=> $this->on_session['id'],
+			'entry'			=> $this->on_session['entry'],
+			'product_id' 	=> $product_id,
+			'purchased' 	=> 0
+		];
+		$existed = $this->db->get_where('orders', $rules);
+
+		if ($existed->num_rows() > 0)
 		{
-			if ($on_session['role_id'] == 1)
+			$newQty = (int) $this->data['qty'] + (int) $existed->row_array()['qty'];
+			if ($newQty > $product['qty'])
 			{
-				$this->_failedAPIResponse('wrong!');
-			}
-
-			if ( ! isset($product_id, $qty, $price, $name) )
-			{
-				$this->_failedAPIResponse('wrong!');
-			}
-
-			$_qty = (float) $qty;
-			if ($_qty == 0)
-			{
-				$this->_failedAPIResponse('wrong!');
-			}
-
-			$data = [
-				'name' 			=> $name,
-				'price' 		=> $price,
-				'qty' 			=> $qty,
-				'product_id' 	=> $product_id,
-
-				'user_id' 		=> $on_session['id'],
-				'readed' 		=> 0,
-				'entry'			=> $on_session['entry'],
-				'created' 		=> time()
-			];
-			$this->data = $data;
-			$this->on_session = $on_session;
-			$this->topic = $on_session['entry'];
-			$product = $this->db->get_where('products', [ 'id' => $product_id ])->row_array();
-
-			$rules = [
-				'user_id' 		=> $on_session['id'],
-				'entry'			=> $on_session['entry'],
-				'product_id' 	=> $product_id,
-				'purchased' 	=> 0
-			];
-			$existed = $this->db->get_where('orders', $rules);
-
-			if ($existed->num_rows() > 0)
-			{
-				$newQty = (int) $qty + (int) $existed->row_array()['qty'];
-				if ($newQty > $product['qty'])
-				{
-					$this->product = $product;
-
-					$this->_over($existed->row_array());
-					return;
-				}
-
-				$this->data['qty'] = $newQty;
-
-				$this->_existed($rules);
+				$this->product = $product;
+				$this->_over($existed->row_array());
 				return;
 			}
 
-			if ($existed->num_rows() == 0)
-			{
-				$rules = [
-					'user_id' 		=> $on_session['id'],
-					'entry'			=> $on_session['entry'],
-					'purchased' 	=> 0
-				];
-				$ever = $this->db->get_where('orders', $rules)->num_rows();
-				if ($ever > 0)
-				{
-					$this->_ever();
-				}
-			}
-
-			if ($qty > $product['qty'])
-			{
-				$this->_over($existed->row_array());
-	        	return;
-			}
-
-			$this->_post();
+			$this->data['qty'] = $newQty;
+			$this->_update($rules);
+			return;
 		}
-		else
-		{
-			$this->_failedAPIResponse('something went wrong!');
-		}
+
+		if ($this->data['qty'] > $product['qty']) $this->_over($existed->row_array());
 	}
 
-	private function _ever()
+	private function _update($rules)
 	{
-		$this->subject = $this->on_session['name'] . " menambah item pesanan";
-		$this->message = $this->on_session['name'] . " menambahkan item " . $this->data['name'] . ", Cek Total, semua Barang yang dipesan, selengkapnya di detail.";
-		$this->_sendNotif(1);
+		$this->data['updated'] = time();
+		$this->order->updateOrder($this->data, $rules) > 0
+		? $this->_updated_success()
+		: $this->_failedAPIResponse('failed to update!');
 	}
 
-	private function _existed($rules)
+	private function _order()
 	{
-		if ($this->order->updateOrder($this->data, $rules) > 0) {
-			$this->_updated_success();
-		} else {
-			$this->_failedAPIResponse('failed to update!');
-		}
+		$this->data['created'] = time();
+		$this->order->createOrder($this->data) > 0
+		? $this->_created_success()
+		: $this->_failedAPIResponse('failed to create new data!');
 	}
 
-	private function _post()
-	{
-		if ($this->order->createOrder($this->data) > 0) {				
-			$this->_created_success();
-		} else {
-			$this->_failedAPIResponse('failed to create new data!');
-		}
-	}
 
 	private function _over($existed)
 	{
 		$product_qty = $this->product['qty'];
 		$existed_qty = $existed['qty'];
 
-		$overMessage = "Jumlah pesanan melebihi kuantitas barang tersedia.";
+		$overMessage = "Jumlah item melebihi kuantitas barang tersedia.";
 
 		$canDo = $product_qty - $existed_qty;
-
 		if ($canDo > 0) {
 			$overMessage .= " Kamu dapat menambah " . $canDo . " pada item " . $this->data['name'] . ".";
-		} else {
+		}else{
 			$this->subject = $this->on_session['name'] . " gagal menambahkan " . $this->data['name'] . " ke daftar pesanan";
 			$this->message = "Kamu dapat menambah " . $this->data['qty'] . " stock item " . $this->data['name'] . ".";
-			$this->_sendNotif(1);
+			$this->_sendNotif($this->is_admin);
 
 			$data = [
 				'product_id' 	=> $this->data['product_id'],
 				'user_id'		=> $this->on_session['id']
 			];
-			$this->db->insert('requests', $data);
+			$this->db->insert('requests', $data); //save request
 		}
 
 		$this->_failedAPIResponse($overMessage);
@@ -281,37 +302,31 @@ class Order extends REST_Controller
 
 	private function _created_success()
 	{
-		activities('create', 'orders', $this->on_session['name'] . ' created new order!');
-
 		$number2nd = $this->db->order_by('created', 'DESC')->get_where('contacts', ['user_id' => $this->on_session['id']])->row_array();
 
 		$msg_concat = "";
-		if ($number2nd) {
-			$msg_concat = " atau ke " . $number2nd['phonenumber'];
-		}
+		if ($number2nd && $number2nd['phonenumber'] !== $this->on_session['phonenumber']) $msg_concat = " atau ke " . $number2nd['phonenumber'];
 
 		$this->subject = "Pesanan berhasil kami unggah";
 		$this->message = "Kami meninjau dan mengirimi pemberitahuan pesan melalui Nomor berikut " . $this->on_session["phonenumber"] . $msg_concat . " pastikan Nomor tersebut Aktif.";
-		$this->_sendNotif(2);
+		$this->_sendNotif($this->is_consumer);
 
-		$this->subject = $this->on_session['name'] . " memesan";
+		$this->subject = $this->on_session['name'] . " membuat pesanan";
 		$this->message = "Cek Total, semua Barang yang dipesan, selengkapnya di detail.";
-		$this->_sendNotif(1);
+		$this->_sendNotif($this->is_admin);
 
-		$this->_createdAPIResponse('created new data successfuly.');
+		$this->_createdAPIResponse('created new order successfuly.');
 	}
 
 	private function _updated_success()
 	{
-		activities('update', 'orders', $this->on_session['name'] . ' updated new order!');
-
 		$this->subject = "Terjadi duplikasi pesanan";
 		$this->message = "Kami menambahkan jumlah item pada " . $this->data['name'] . ". Cek Total, selengkapnya di detail.";
-		$this->_sendNotif(2);
-
-		$this->subject = $this->on_session['name'] . " menambah jumlah pesanan";
+		$this->_sendNotif($this->is_consumer);
+		
+		$this->subject = $this->on_session['name'] . " menambah jumlah item pesanan";
 		$this->message = $this->on_session['name'] . " menambahkan jumlah item " . $this->data['name'] . " menjadi " . $this->data['qty'] . ", Cek Total, semua Barang yang dipesan, selengkapnya di detail.";
-		$this->_sendNotif(1);
+		$this->_sendNotif($this->is_admin);
 
 		$this->_successAPIResponse('updated successfuly!');
 	}
@@ -329,6 +344,9 @@ class Order extends REST_Controller
 		if (!$existed) {
 			notification($rules['subject'], $rules['message'], $role_id, $this->on_session['id'], $this->topic);
 		}
+
+		$this->subject = "";
+		$this->message = "";
 	}
 
 	private function _createdAPIResponse($msg)

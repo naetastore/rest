@@ -19,8 +19,9 @@ class Avatar extends REST_Controller
 			}
 
 			$image = $_FILES['image']['name'];
-			$config['upload_path']          = FCPATH . 'assets/img/avatar/';
-            $config['allowed_types']        = 'jpg|jpeg|png|svg|mp4|mp3';
+			$config['upload_path']          = FCPATH . 'src/img/avatar/';
+            $config['allowed_types']        = 'jpg|jpeg|png|svg';
+            // |mp4|mp3
             $config['encrypt_name']        	= TRUE;
 
             $this->load->library('upload', $config);
@@ -34,16 +35,16 @@ class Avatar extends REST_Controller
             	$image_ext  = $this->upload->data('file_ext');
             	$image_type = $this->upload->data('file_type');
             	$image_size = $this->upload->data('file_size');
-            	$image_path = base_url('assets/img/avatar/' . $on_session['avatar']);
+            	$image_path = base_url('src/img/avatar/' . $on_session['avatar']);
             	
             	$ext = ['.mp4', '.mp3'];
             	if (!in_array($image_ext, $ext)) {
-	            	if ($on_session['avatar'] !== 'default_avatar.svg') {
-						unlink(FCPATH . 'assets/img/avatar/' . $on_session['avatar']);
+	            	if ($on_session['avatar'] !== NULL) {
+						unlink(FCPATH . 'src/img/avatar/' . $on_session['avatar']);
 					}
 
 	            	$this->db->update('users', ['avatar' => $image_name], [ 'id' => $on_session['id'] ]);
-	            	$image_path = base_url('assets/img/avatar/' . $image_name);
+            	   $image_path = base_url('src/img/avatar/' . $image_name);
             	}
 
             	$img_properties = [

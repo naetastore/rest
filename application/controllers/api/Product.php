@@ -14,31 +14,43 @@ class Product extends REST_Controller
 
     public function index_get()
     {
-        /* parameter
-        */ $id = $this->get('id');
+        $id = $this->get('id');
         $suggested = $this->get('suggested');
         $limit = $this->get('limit');
 
         if ($id === null) {
             if ($suggested) {
-                $product = $this->db->order_by('created', 'DESC')->get_where('products', ['suggested' => 1])->result_array();
+                $product = $this->db->order_by('created', 'DESC')->get_where('products', ['suggested' => 1, 'is_ready' => 1])->result_array();
             } else {
                 if ($limit) {
-                    $product = $this->db->limit($limit)->get('products')->result_array();
+                    $product = $this->db->limit($limit)->get_where('products', ['is_ready' => 1])->result_array();
                 } else {
                     $product = $this->product->getProduct();
                 }
-            }
-            $i = 0;
-            foreach ($product as $key) {
-                $product[$i]['price'] = number_format($key['price']);
-                $i++;
             }
         }
         else
         {
             $product = $this->product->getProduct($id);
-            $product['price'] = number_format($product['price']);
+        }
+        
+        // replace: rupiah number formating
+        if ($product && isset($product['price']))
+        {
+            $product['curs'] = 'Rp.';
+            $product['price'] = rupiah_format($product['price']);
+            $product['image'] = base_url('src/img/product/' . $product['image']);
+        }
+        if ($product && !isset($product['price']))
+        {
+            $i=0;
+            foreach ($product as $key)
+            {
+                $product[$i]['curs'] = 'Rp.';
+                $product[$i]['price'] = rupiah_format($key['price']);
+                $product[$i]['image'] = base_url('src/img/product/' . $key['image']);
+                $i++;
+            }
         }
 
         if ($product) {
@@ -49,7 +61,7 @@ class Product extends REST_Controller
         } else {
             $this->response([
                 'status' => false,
-                'message' => 'id not found!'
+                'message' => 'no data to display'
             ], REST_Controller::HTTP_NOT_FOUND);
         }
     }

@@ -14,15 +14,16 @@ class General extends REST_Controller
 
 	public function index_get()
 	{
-		/* parameter
-		*/ $id = $this->get('id');
+		$id = $this->get('id');
 
 		if ($id === null) {
 			$general = $this->global->getGlobal();
 			$i = 0;
 			foreach ($general as $key) {
-				$general[$i]['start_price'] = number_format($key['start_price']);
-				$general[$i]['high_price'] = number_format($key['high_price']);
+				$general[$i]['curs'] = 'Rp.';
+				$general[$i]['start_price'] = rupiah_format($key['start_price']);
+				$general[$i]['high_price'] = rupiah_format($key['high_price']);
+				$general[$i]['image'] = base_url('src/img/global/' . $key['image']);
 				$i++;
 			}
 		}

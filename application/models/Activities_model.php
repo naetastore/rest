@@ -3,9 +3,14 @@
 class Activities_model extends CI_Model
 {
 
-	public function getActivities()
+	public function getActivities($limit = null)
 	{
-		$act = $this->db->order_by('created', 'DESC')->get_where('activities', ['readed' => 0])->result_array();
+		if ($limit == null)
+		{
+			$act = $this->db->order_by('created', 'DESC')->get_where('activities', ['readed' => 0])->result_array();
+		}else{
+			$act = $this->db->limit($limit)->order_by('created', 'DESC')->get_where('activities', ['readed' => 0])->result_array();
+		}
 
 		$i=0;
 		foreach ($act as $key) {

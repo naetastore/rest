@@ -5,6 +5,10 @@ require APPPATH . 'libraries/REST_Controller.php';
 
 class Deorder extends REST_Controller
 {
+	private $is_superuser = 1;
+	private $is_admin = 2;
+	private $is_consumer = 3;
+
 	private $on_session;
 	private $user;
 	private $entry;
@@ -29,21 +33,16 @@ class Deorder extends REST_Controller
 
 		$on_session = get_user($username, $password);
 
-		if ($on_session) {
-			if (!$consumername | !$entry) {
-				$this->_failedAPIResponse('Order failed to delete!');
-			}
+		if (!$on_session) $this->_failedAPIResponse('Something went wrong!');
+		if (!$consumername | !$entry) $this->_failedAPIResponse('Something went wrong!');
 
-			$this->on_session = $on_session;
-			$user = $this->db->get_where('users', ['username' => $consumername])->row_array();
-			$this->user = $user;
-			$this->entry = $entry;
-			$this->topic = $entry;
+		$this->on_session = $on_session;
+		$user = $this->db->get_where('users', ['username' => $consumername])->row_array();
+		$this->user = $user;
+		$this->entry = $entry;
+		$this->topic = $entry;
 
-			$this->_delete();
-		} else {
-			$this->_failedAPIResponse('Something went wrong!');
-		}
+		$this->_delete();
 	}
 
 	private function _delete()
@@ -52,29 +51,114 @@ class Deorder extends REST_Controller
 			'user_id'	=> $this->user['id'],
 			'entry'		=> $this->entry
 		];
-
-		$is_admin = $this->on_session['role_id'] < 2;
-
-		if ($is_admin) {
-			$affected = $this->order->deleteOrder($rules);
-		} else {
-			$data = [ 'readed' => 1, 'deleted' => time() ];
-			$affected = $this->order->updateOrder($data, $rules);
+		$order = $this->db->get_where('orders', $rules)->row_array();
+		
+		$canceled = $order['canceled'] > 0 && $order['purchased'] < 1;
+		if (!$canceled && $order['purchased'] < 1) // status: in_order
+		{
+			$dataAccess = [
+				'role_id' 	=> $this->on_session['role_id'],
+				'status' 	=> 'in_order',
+				'action' 	=> 'cancel'
+			];
+			$queryAccess = get_order_access($dataAccess);
+			if ($queryAccess->num_rows() > 0)
+			{
+				$data = ['readed' => 1, 'canceled' => time()];
+				$affected = $this->order->updateOrder($data, $rules);
+			}
 		}
-
-		$result = $this->db->get_where('orders', $rules)->num_rows();
+		if ($canceled) // status: canceled
+		{
+			$dataAccess = [
+				'role_id' 	=> $this->on_session['role_id'],
+				'status' 	=> 'canceled',
+				'action' 	=> 'hard_delete'
+			];
+			$queryAccess = get_order_access($dataAccess);
+			if ($queryAccess->num_rows() > 0)
+			{
+				$affected = $this->order->deleteOrder($rules);
+			}
+			
+			$dataAccess = [
+				'role_id' 	=> $this->on_session['role_id'],
+				'status' 	=> 'canceled',
+				'action' 	=> 'soft_delete'
+			];
+			$queryAccess = get_order_access($dataAccess);
+			if ($queryAccess->num_rows() > 0)
+			{
+				$affected = $this->order->updateOrder([
+					'readed'  => 1,
+					'deleted' => time()
+				], $rules);
+			}
+		}
+		if ($order['purchased'] > 0) //status: purchased
+		{
+			$dataAccess = [
+				'role_id' 	=> $this->on_session['role_id'],
+				'status' 	=> 'purchased',
+				'action' 	=> 'hard_delete'
+			];
+			$queryAccess = get_order_access($dataAccess);
+			if ($queryAccess->num_rows() > 0)
+			{
+				$affected = $this->order->deleteOrder($rules);
+			}
+			
+			$dataAccess = [
+				'role_id' 	=> $this->on_session['role_id'],
+				'status' 	=> 'purchased',
+				'action' 	=> 'soft_delete'
+			];
+			$queryAccess = get_order_access($dataAccess);
+			if ($queryAccess->num_rows() > 0)
+			{
+				$affected = $this->order->updateOrder([
+					'readed'  => 1,
+					'deleted' => time()
+				], $rules);
+			}
+		}
+		if ($order['deleted'] > 0 && $order['purchased'] > 0) //status: purchased_deleted
+		{
+			$dataAccess = [
+				'role_id' 	=> $this->on_session['role_id'],
+				'status' 	=> 'purchased_deleted',
+				'action' 	=> 'hard_delete'
+			];
+			$queryAccess = get_order_access($dataAccess);
+			if ($queryAccess->num_rows() > 0)
+			{
+				$affected = $this->order->deleteOrder($rules);
+			}
+			
+			$dataAccess = [
+				'role_id' 	=> $this->on_session['role_id'],
+				'status' 	=> 'purchased_deleted',
+				'action' 	=> 'soft_delete'
+			];
+			$queryAccess = get_order_access($dataAccess);
+			if ($queryAccess->num_rows() > 0)
+			{
+				$affected = $this->order->updateOrder([
+					'readed'  => 1,
+					'deleted' => time()
+				], $rules);
+			}
+		}
 
 		if ($affected) {
 			$this->_deleted_success();
 		} else {
-			$this->_failedAPIResponse($this->user['id']);
+			$this->_failedAPIResponse('Failed to delete!');
 		}
 	}
 
 	private function _deleted_success()
 	{
-		$is_admin = $this->on_session['role_id'] < 2;
-
 		$options = [
 			'user_id'	=> $this->user['id'],
 			'entry'		=> $this->entry,
@@ -83,24 +167,18 @@ class Deorder extends REST_Controller
 
 		$purchased = $this->db->get_where('orders', $options)->num_rows() > 0;
 
-		if (!$is_admin) {
-			if ($purchased) {
-				$msg_concat = "hapus";
-			} else {
-				$msg_concat = "batalkan";
-			}
-
-			$this->subject = "Pesanan berhasil kami " . $msg_concat;
+		$role_id = $this->on_session['role_id'];
+		if ($role_id == $this->is_consumer && !$purchased)
+		{
+			$this->subject = "Pesanan berhasil kami batalkan";
 			$this->message = "";
-			$this->_sendNotif(2);
+			$this->_sendNotif($this->is_consumer);
 
-			if (!$purchased) {
-				$this->subject = $this->user['name'] . " membatalkan pesanan";
-				$this->_sendNotif(1);
-			}
+			$this->subject = $this->user['name'] . " membatalkan pesanan";
+			$this->_sendNotif($this->is_admin);
 		}
 
-		$this->db->update('users', [ 'entry' => create_entry() ], [ 'id' => $this->user['id'] ]);
+		$this->db->update('users', ['entry' => create_entry()], [ 'id' => $this->user['id'] ]);
 
 		$this->_successAPIResponse('Order has been deleted!');
 	}
