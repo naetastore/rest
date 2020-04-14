@@ -1,0 +1,121 @@
+html {
+    font-family: sans-serif;
+    line-height: 1.15;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    -ms-overflow-style: scrollbar;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+body {
+    margin: 0;
+    font-family: "Chinese Quote", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    font-size: 14px;
+    font-variant: tabular-nums;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.65);
+
+    background: #F4F5F9;
+}
+
+.row.login {
+    width: 100%;
+    min-height: calc(100vh - 30px);
+    display: -moz-box;
+    display: -ms-flexbox;
+    justify-content: center;
+    align-items: center;
+}
+
+.bg-login-image img {
+    height: 35px;
+}
+span._wf {
+    vertical-align: top;
+    font-size: 10px;
+}
+
+.bg-login-image ._nr {
+    border-radius: 15px;
+    background: linear-gradient(-135deg, #5d9cec, #4158d0);
+    width: max-content;
+    padding: 5px 25px;
+    color: #fff;
+}
+.bg-login-image a {
+    text-decoration: underline;
+    color: #5d9cec;
+    position: absolute;
+    bottom: 0;
+    font-size: 10.3px;
+}
+
+.bg-login-image {
+    background: url('../img/promo.svg');
+    background-repeat: no-repeat;
+    background-position-x: 50%;
+    background-position-y: 100%;
+    background-size: contain;
+    background-color: #f5f5f5;
+    border-top-left-radius: .25rem;
+    border-bottom-left-radius: .25rem;
+}
+
+img.logo {
+    width: 80px;
+}
+
+button[type="button"]:not(:disabled).btn-signin:hover,
+button[type="button"]:not(:disabled).btn-signin:focus {
+    background: #5d9cec;
+}
+
+button[type="button"]:disabled.btn-signin {
+    background-color: rgba(0, 0, 0, 0.25);
+}
+
+button[type="button"].btn-signin {
+    border: none;
+    text-align: center;
+    box-shadow: 0px 5px 15px 6px #0000000d;
+    background-color: rgba(0, 0, 0, 0.25);
+
+    border-radius: 20px;
+    padding: 10px 8px;
+    outline: none;
+    color: #FFF;
+    width: 100%;
+    transition: .2s background-color;
+}
+
+
+.form-group input::placeholder {
+    color: #D3D6DB;
+}
+
+.form-group input:focus {
+    background-color: #FFF;
+    color: #000;
+    border: 2px solid #5d9ceccc;
+}
+
+.form-group input {
+    border: 2px solid transparent;
+    background-color: #f5f5f5;
+    border-radius: 20px;
+    padding: 8px 16px;
+    transition: .1s ease-in-out background-color,
+                .1s border;
+
+    outline: none;
+    width: 100%;
+}
+
+div#alert {
+    margin-left: 10px;
+}
+
+.copyright {
+    line-height: 1;
+    font-size: 0.8rem;
+}
