@@ -324,7 +324,7 @@ $config['rest_keys_table'] = 'keys';
 |   ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 |
 */
-$config['rest_enable_keys'] = true;
+$config['rest_enable_keys'] = FALSE;
 
 /*
 |--------------------------------------------------------------------------
@@ -377,7 +377,7 @@ $config['rest_key_length'] = 40;
 | 2012/06/12. See RFC 6648 specification for more details
 |
 */
-$config['rest_key_name'] = 'apikey';
+$config['rest_key_name'] = 'X-API-KEY';
 
 /*
 |--------------------------------------------------------------------------
@@ -603,13 +603,4 @@ $config['allow_any_cors_domain'] = FALSE;
 | e.g. $config['allowed_origins'] = ['http://www.example.com', 'https://spa.example.com']
 |
 */
-$_web_apps=[];
-$ci=get_instance();
-$data = $ci->db->get('keys')->result_array();
-$i=0;
-foreach($data as $d){
-  $_web_apps[$i] = $d['web_app'];
-  $i++;
-}
-$_web_apps = array_merge($_web_apps, ['http://localhost:3000']);
-$config['allowed_cors_origins'] = $_web_apps;
+$config['allowed_cors_origins'] = ['http://localhost:3000', 'http://localhost:5000'];

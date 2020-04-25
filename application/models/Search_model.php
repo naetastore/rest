@@ -2,7 +2,6 @@
 
 class Search_model extends CI_Model
 {
-
 	public function getSearch($keyword) {
 
 		$keyword = explode(' ', $keyword);
@@ -25,11 +24,10 @@ class Search_model extends CI_Model
 
 		$i=0;
 		foreach ($search as $key) {
-			$search[$i]['price'] = rupiah_format($key['price']);
+			$search[$i]['price'] = number_format($key['price'], 0, '.','.');
 			$search[$i]['image'] = base_url('src/img/product/' . $key['image']);
 			$i++;
 		}
 		return $search;
 	}
-
 }

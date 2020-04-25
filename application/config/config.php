@@ -23,9 +23,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 | a PHP script and you can easily do that on your own.
 |
 */
-$config['base_url'] = 'http://localhost/naeta-rest-server/';
-// http://localhost/naeta-rest-server/
-// https://naeta-rest-server.000webhostapp.com/
+$config['base_url'] = 'http://localhost/rest/';
 
 /*
 |--------------------------------------------------------------------------

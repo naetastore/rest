@@ -35,36 +35,73 @@ class Product extends REST_Controller
             $product = $this->product->getProduct($id);
         }
         
-        // replace: rupiah number formating
-        if ($product && isset($product['price']))
-        {
-            $product['curs'] = 'Rp.';
-            $product['price'] = rupiah_format($product['price']);
-            $product['image'] = base_url('src/img/product/' . $product['image']);
+        if (!$product) {
+            $this->response([
+                'status' => false,
+                'message' => 'Products could not be found'
+            ], REST_Controller::HTTP_NOT_FOUND);
         }
-        if ($product && !isset($product['price']))
-        {
+
+        if (isset($product['price'])) {
+            $product['curs'] = 'Rp.';
+            $product['price'] = number_format($product['price'], 0, '.', '.');
+            $product['image'] = base_url('src/img/product/' . $product['image']);
+        }else{
             $i=0;
             foreach ($product as $key)
             {
                 $product[$i]['curs'] = 'Rp.';
-                $product[$i]['price'] = rupiah_format($key['price']);
+                $product[$i]['price'] = number_format($key['price'], 0, '.', '.');
                 $product[$i]['image'] = base_url('src/img/product/' . $key['image']);
                 $i++;
             }
         }
 
-        if ($product) {
-            $this->response([
-                'status' => true,
-                'product' => $product
-            ], REST_Controller::HTTP_OK);
-        } else {
+        $this->response([
+            'status' => true,
+            'product' => $product
+        ], REST_Controller::HTTP_OK);
+    }
+
+    public function search_get()
+    {
+        $keyword = $this->get('q');
+
+        $this->load->model('Search_model', 'search');
+
+        if (strlen($keyword) < 1)
+        {
             $this->response([
                 'status' => false,
-                'message' => 'no data to display'
-            ], REST_Controller::HTTP_NOT_FOUND);
+                'message' => 'Provide an keyword'
+            ], REST_Controller::HTTP_BAD_REQUEST);
         }
+
+        $search = $this->search->getSearch($keyword);
+
+        if (!$search) {
+            $this->response([
+                'status' => false,
+                'message' => 'Product not found'
+            ], REST_Controller::HTTP_NOT_FOUND);
+        }else{
+            $this->response([
+                'status' => true,
+                'search' => $search,
+            ], REST_Controller::HTTP_OK);
+        }
+    }
+
+    public function statistics_get()
+    {
+        $this->load->model('Administrator_model', 'admin');
+
+        $data = [
+            'basic' => $this->admin->basic_statistics(),
+            'product' => $this->admin->product_statistics()
+        ];
+
+        $this->response($data, REST_Controller::HTTP_OK);
     }
     
 }
