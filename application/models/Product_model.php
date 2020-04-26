@@ -29,5 +29,15 @@ class Product_model extends CI_Model {
 		$this->db->update('products', $data, ['id' => $id]);
 		return $this->db->affected_rows();
 	}
+
+	public function selled($id)
+	{
+		$order = $this->db->get_where('orders', [ 'product_id' => $id, 'purchased' => 1 ])->result_array();
+        $_n=0;
+        foreach ($order as $r) {
+            $_n += $r['qty'];
+        }
+        return number_format($_n, 0, '.', '.');
+	}
 	
 }

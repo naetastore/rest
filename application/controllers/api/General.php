@@ -33,6 +33,15 @@ class General extends REST_Controller
 		}
 
 		if ($general) {
+			$i=0;
+			foreach ($general as $key) {
+				$queryCategory = $this->db->get_where('categories', ['global_id' => $key['id']]);
+				if ($queryCategory->num_rows() < 1) {
+					unset($queryCategory[$i]);
+				}
+				$i++;
+			}
+
 			$this->response([
             	'status' => true,
             	'general' => $general,

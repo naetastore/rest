@@ -1,23 +1,28 @@
 <?php
 
 function create_entry() {
-	$entry = base64_encode(random_bytes(32));
-	$entry = trim($entry, ',');
-	$entry = explode('+', $entry);
-	
-	$result="";
-	foreach($entry as $e) {
-		$result .= $e;
+	$ci = get_instance();
+
+	do {
+		$entry = base64_encode(random_bytes(32));
+
+		$entry = trim($entry, ',');
+
+		$entry = explode('+', $entry);
+		$result="";
+		foreach($entry as $e) {
+			$result .= $e;
+		}
+
+		$result = explode('/', $result);
+		$new_entry="";
+		foreach($result as $e) {
+			$new_entry .= $e;
+		}
 	}
+	while ($ci->db->get('users', ['entry' => $new_entry])->num_rows() > 0);
 
-	$result = explode('/', $result);
-
-	$result1="";
-	foreach($result as $e) {
-		$result1 .= $e;
-	}
-
-	return $result1;
+	return $new_entry;
 }
 
 function rewrapp($userdata)

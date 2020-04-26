@@ -14,8 +14,7 @@ class Category extends REST_Controller
 
 	public function index_get()
 	{
-		/* parameter
-		*/ $id = $this->get('id');
+		$id = $this->get('id');
 
 		if ($id === null) {
 			$category = $this->category->getCategory();
@@ -24,6 +23,15 @@ class Category extends REST_Controller
 		}
 
 		if ($category) {
+			$i=0;
+			foreach ($category as $key) {
+				$queryProduct = $this->db->get_where('products', ['category_id' => $key['id']]);
+				if ($queryProduct->num_rows() < 1) {
+					unset($queryProduct[$i]);
+				}
+				$i++;
+			}
+
 			$this->response([
             	'status' => true,
             	'category' => $category,
