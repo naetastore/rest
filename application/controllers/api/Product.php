@@ -51,6 +51,7 @@ class Product extends REST_Controller
             $product['curs'] = 'Rp.';
             $product['price'] = number_format($product['price'], 0, '.', '.');
             $product['image'] = base_url('src/img/product/' . $product['image']);
+            $product['selled'] = $this->product->selled($product['id']);
         }else{
             $i=0;
             foreach ($product as $key)
@@ -58,7 +59,6 @@ class Product extends REST_Controller
                 $product[$i]['curs'] = 'Rp.';
                 $product[$i]['price'] = number_format($key['price'], 0, '.', '.');
                 $product[$i]['image'] = base_url('src/img/product/' . $key['image']);
-
                 $product[$i]['selled'] = $this->product->selled($key['id']);
                 $i++;
             }
@@ -81,10 +81,7 @@ class Product extends REST_Controller
 
         $this->load->helper('client');
 
-        $user = basic_auth([
-            'username' => $this->post('username'),
-            'password' => $this->post('password')
-        ]);
+        $user = basic_auth();
 
         if ($user['role_id'] == 2) {
             $this->response([
@@ -112,10 +109,7 @@ class Product extends REST_Controller
     {
         $this->load->helper('client');
 
-        $user = basic_auth([
-            'username' => $this->post('username'),
-            'password' => $this->post('password')
-        ]);
+        $user = basic_auth();
 
         if ($user['role_id'] == 2) {
             $this->response([
@@ -151,12 +145,6 @@ class Product extends REST_Controller
 
         $id = $this->post('id');
 
-        $config['upload_path']          = FCPATH . 'src/img/product/';
-        $config['allowed_types']        = 'jpg|jpeg|png|svg';
-        $config['encrypt_name']         = TRUE;
-        
-        $this->load->library('upload', $config);
-
         $uploadImage = TRUE;
         if (isset($id)) {
             $queryProduct = "SELECT `products`.`image` FROM `products` WHERE `products`.`id` = $id";
@@ -168,6 +156,12 @@ class Product extends REST_Controller
             }
         }
         if ($uploadImage) {
+            $config['upload_path']          = FCPATH . 'src/img/product/';
+            $config['allowed_types']        = 'jpg|jpeg|png|svg';
+            $config['encrypt_name']         = TRUE;
+            
+            $this->load->library('upload', $config);
+            
             if (!$this->upload->do_upload('image'))
             {
                 $this->response([
@@ -194,6 +188,7 @@ class Product extends REST_Controller
 
         if ($this->db->affected_rows() > 0) {
             $product = $this->db->get_where('products', ['name' => $name])->row_array();
+            $product['selled'] = 0;
 
             if (isset($id)) {
                 $message = [

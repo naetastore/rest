@@ -2,25 +2,10 @@
 
 function create_entry() {
 	$ci = get_instance();
-
+	
 	do {
-		$entry = base64_encode(random_bytes(32));
-
-		$entry = trim($entry, ',');
-
-		$entry = explode('+', $entry);
-		$result="";
-		foreach($entry as $e) {
-			$result .= $e;
-		}
-
-		$result = explode('/', $result);
-		$new_entry="";
-		foreach($result as $e) {
-			$new_entry .= $e;
-		}
-	}
-	while ($ci->db->get('users', ['entry' => $new_entry])->num_rows() > 0);
+		$new_entry = base_convert(bin2hex($ci->security->get_random_bytes(64)), 16, 36);
+	} while ($ci->db->get_where('users', ['entry' => $new_entry])->num_rows() > 0);
 
 	return $new_entry;
 }

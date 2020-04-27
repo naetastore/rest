@@ -8,7 +8,7 @@ class Category_model extends CI_Model {
 		}
 		else
 		{
-			return $this->db->get_where('categories', ['id' => $id])->result_array();
+			return $this->db->get_where('categories', ['id' => $id])->row_array();
 		}
 	}
 	

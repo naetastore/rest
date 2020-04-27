@@ -216,7 +216,7 @@ class Orders extends REST_Controller {
 
     private function _update()
     {
-        $entry = $this->post('entry');
+    	$entry = $this->post('entry');
 
         $this->load->helper('user');
         $this->load->helper('notification');
