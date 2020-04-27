@@ -15,15 +15,94 @@ class Users extends REST_Controller {
 
     public function index_get()
     {
+        if ($this->get('delete')) {
+            $this->_delete();
+            return;
+        }
+
+        $id = $this->get('id');
+
+        if ($id === NULL) {
+            $user = basic_auth();
+
+            if ($user['role_id'] == 1 && $this->get('all')) {
+                $this->db->where('id !=', 1);
+            	$user = $this->db->get('users')->result_array();
+            }
+        }else{
+            $id = (int) $id;
+
+            if ($id <= 0)
+            {
+                $this->response(NULL, REST_Controller::HTTP_BAD_REQUEST);
+            }
+
+            $user = $this->db->get_where('users', ['id' => $id])->row_array();
+        }
+
+        if ($user)
+        {
+            if (isset($user['username'])) {
+                if ($user['avatar'] !== NULL) {
+                    $user['avatar'] = base_url('src/img/avatar/' . $user['avatar']);
+                }else{
+                    unset($user['avatar']);
+                }
+                
+                $user['password'] = TRUE;
+                $user['created'] = date('d F y', $user['created']);
+            }else{
+                $i=0;
+                foreach ($user as $key) {
+                    $user[$i]['password'] = TRUE;
+                    $user[$i]['created'] = date('d F y', $key['created']);
+                    $i++;
+                }
+            }
+
+            $this->set_response($user, REST_Controller::HTTP_OK);
+        }
+        else
+        {
+            $this->set_response([
+                'status' => FALSE,
+                'message' => 'User could not be found'
+            ], REST_Controller::HTTP_NOT_FOUND);
+        }
+    }
+
+    private function _delete()
+    {
         $user = basic_auth();
 
-        if ($user['avatar'] !== NULL) {
-            $user['avatar'] = base_url('src/img/avatar/' . $user['avatar']);
-        }else{
-            unset($user['avatar']);
+        if ($user['role_id'] == 2) {
+            $this->response([
+                'status' => FALSE,
+                'message' => 'Something went wrong'
+            ], REST_Controller::HTTP_BAD_REQUEST);
         }
-        
-        $this->response($user, REST_Controller::HTTP_OK);
+
+        $id = (int) $this->get('id');
+
+        if ($id <= 0)
+        {
+            $this->response(NULL, REST_Controller::HTTP_BAD_REQUEST);
+        }
+
+        $user = $this->db->get_where('users', ['id' => $id])->row_array();
+
+        if ($user['avatar'] !== NULL) {
+            unlink(FCPATH . 'src/img/avatar/' . $user['avatar']);
+        }
+
+        $this->db->delete('users', ['id' => $id]);
+
+        $message = [
+            'id' => $id,
+            'message' => 'Deleted the resource'
+        ];
+
+        $this->set_response($message, REST_Controller::HTTP_OK);
     }
 
     public function index_post()
@@ -107,6 +186,8 @@ class Users extends REST_Controller {
             unset($user['avatar']);
         }
 
+        $user['created'] = date('d F y', $user['created']);
+
         $message = [
             'user' => $user,
             'message' => 'Added a resource'
@@ -121,6 +202,7 @@ class Users extends REST_Controller {
 
         $username = $this->post('username');
         $password = $this->post('password');
+        $id = $this->post('id');
 
         $data=[];
 
@@ -177,12 +259,22 @@ class Users extends REST_Controller {
         }
 
         if (!$data) {
-            $this->response(NULL, REST_Controller::HTTP_BAD_REQUEST);
+            $this->response([
+                'status' => FALSE,
+                'message' => 'No data to update!'
+            ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
-        $this->db->update('users', $data, ['username' => $username]);
+        if ($user['role_id'] == 1) {
+            $rules = ['id' => $id];
+        }
+        if ($user['role_id'] == 2) {
+            $rules = ['username' => $username];
+        }
 
-        $user = $this->db->get_where('users', ['username' => $username])->row_array();
+        $this->db->update('users', $data, $rules);
+
+        $user = $this->db->get_where('users', $rules)->row_array();
 
         if ($user['avatar'] === NULL) {
             unset($user['avatar']);
