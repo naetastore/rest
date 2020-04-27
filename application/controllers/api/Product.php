@@ -206,10 +206,21 @@ class Product extends REST_Controller
 
             $this->set_response($message, $code);
         }else{
-            $this->response([
-                'status' => false,
-                'message' => 'Product failed to uploaded'
-            ], REST_Controller::HTTP_BAD_REQUEST);
+            if (isset($id)) {
+                $message = [
+                    'status' => TRUE,
+                    'message' => 'Everything is up to date'
+                ];
+                $code = 200;
+            } else {
+                $message = [
+                    'status' => FALSE,
+                    'message' => 'Product failed to uploaded'
+                ];
+                $code = 400;
+            }
+
+            $this->set_response($message, $code);
         }
     }
 
