@@ -40,49 +40,48 @@ class Orders extends REST_Controller {
 
             $orders = $this->db->order_by('created', 'DESC')->group_by('entry')->get_where('orders', $rules)->result_array();
 
-            if ($orders)
-            {
-            	$i=0;
-            	foreach ($orders as $key) {
-            		$orders[$i]['created'] = postdate($key['created']);
-            		$orders[$i]['user_name'] = $this->db->get_where('users', ['id' => $key['user_id']])->row_array()['username'];
-            		$i++;
-            	}
+            if ($this->get('all')) {
 
-                $this->response($orders, REST_Controller::HTTP_OK);
-            }
-            else
-            {
-                $this->response([
-                    'status' => FALSE,
-                    'message' => 'No orders were found'
-                ], REST_Controller::HTTP_NOT_FOUND);
+                if ($orders) {
+                    $i=0;
+                    foreach ($orders as $key) {
+                        $orders[$i] = $this->_get_details($key['entry']);
+                        $i++;
+                    }
+                    $this->response($orders, REST_Controller::HTTP_OK);
+                }else{
+                    $this->response([
+                        'status' => FALSE,
+                        'message' => 'No orders were found'
+                    ], REST_Controller::HTTP_NOT_FOUND);
+                }
+
+            }else{
+                if ($orders)
+                {
+                	$i=0;
+                	foreach ($orders as $key) {
+                		$orders[$i]['created'] = postdate($key['created']);
+                		$orders[$i]['user_name'] = $this->db->get_where('users', ['id' => $key['user_id']])->row_array()['username'];
+                		$i++;
+                	}
+
+                    $this->response($orders, REST_Controller::HTTP_OK);
+                }
+                else
+                {
+                    $this->response([
+                        'status' => FALSE,
+                        'message' => 'No orders were found'
+                    ], REST_Controller::HTTP_NOT_FOUND);
+                }
             }
         }else{
-            $orders = $this->db->get_where('orders', ['entry' => $entry])->result_array();
+            $orders = $this->_get_details($entry);
 
-            if (!empty($orders))
-            {
-            	$i=0;
-            	foreach ($orders as $key) {
-            		$orders[$i]['created'] = postdate($key['created']);
-            		$i++;
-            	}
-
-                $user_access = $this->_generateAccess([
-                    'orders' => $orders,
-                    'user' => $this->user
-                ]);
-
-                $orders = $this->_generateDetails($orders);
-
-                $this->response([
-                    'order' => $orders,
-                    'useraccess' => $user_access
-                ], REST_Controller::HTTP_OK);
-            }
-            else
-            {
+            if ($orders) {
+                $this->response($orders, REST_Controller::HTTP_OK);
+            }else{
                 $this->response([
                     'status' => FALSE,
                     'message' => 'Orders could not be found'
@@ -90,6 +89,44 @@ class Orders extends REST_Controller {
             }
         }
 
+    }
+
+    private function _get_details($entry)
+    {
+        $orders = $this->db->get_where('orders', ['entry' => $entry])->result_array();
+
+        if (!empty($orders))
+        {
+            $i=0;
+            foreach ($orders as $key) {
+                $orders[$i]['created'] = postdate($key['created']);
+                
+                $queryProduct = "SELECT `products`.`image` FROM products WHERE `products`.`id` = {$key['product_id']}";
+                $product = $this->db->query($queryProduct)->row_array();
+
+                $orders[$i]['image'] = base_url('src/img/product/' . $product['image']);
+
+                $i++;
+            }
+
+            $user_access = $this->_generateAccess([
+                'orders' => $orders,
+                'user' => $this->user
+            ]);
+
+            $orders = $this->_generateDetails($orders);
+
+            $details = [
+                'order' => $orders,
+                'useraccess' => $user_access
+            ];
+
+            return $details;
+        }
+        else
+        {
+            return FALSE;
+        }
     }
 
     public function index_post()
@@ -467,7 +504,7 @@ class Orders extends REST_Controller {
 
         $subtotal=0;
         foreach ($product as $p) {
-            $subtotal += $p['price'] + $p['qty'];
+            $subtotal += $p['price'] * $p['qty'];
         }
 
         $shipping=0;
@@ -475,11 +512,13 @@ class Orders extends REST_Controller {
 
         $i=0;
         foreach ($product as $p) {
-            $product[$i]['price'] = number_format($p['price'], 0, '.', '.');
             $product[$i]['qty'] = number_format($p['qty'], 0, '.', '.');
 
-            $queryProduct = "SELECT `products`.`qty` FROM `products` WHERE `products`.`id` = {$p['product_id']}";
+            $queryProduct = "SELECT `products`.`qty`,`price` FROM `products` WHERE `products`.`id` = {$p['product_id']}";
             $pOrdered = $this->db->query($queryProduct)->row_array();
+
+            // replace > price
+            $product[$i]['price'] = number_format($pOrdered['price'], 0, '.', '.');
 
             $count = $pOrdered['qty'] / $p['qty'];
 

@@ -54,6 +54,12 @@ class Users extends REST_Controller {
             }else{
                 $i=0;
                 foreach ($user as $key) {
+                    if ($user[$i]['avatar'] !== NULL) {
+                        $user[$i]['avatar'] = base_url('src/img/avatar/' . $key['avatar']);
+                    }else{
+                        unset($user['avatar']);
+                    }
+
                     $user[$i]['password'] = TRUE;
                     $user[$i]['created'] = date('d F y', $key['created']);
                     $i++;
@@ -146,6 +152,13 @@ class Users extends REST_Controller {
             }
         }
 
+        if ($user->num_rows() > 0) {
+            $this->response([
+                'status' => FALSE,
+                'message' => 'This username has already taken'
+            ], REST_Controller::HTTP_BAD_REQUEST);
+        }
+
         if ($password === NULL)
         {
             $this->response([
@@ -161,14 +174,12 @@ class Users extends REST_Controller {
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
-        if ($user->num_rows() > 0) {
-            $this->response([
-                'status' => FALSE,
-                'message' => 'This username has already taken'
-            ], REST_Controller::HTTP_BAD_REQUEST);
-        }
-
         $this->load->helper('user');
+
+        $email = $this->post('email');
+        if (isset($email)) {
+            $this->db->set('email', $email);
+        }
 
         $this->db->insert('users', [
             'username'  => $username,
