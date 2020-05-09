@@ -277,9 +277,19 @@ class Orders extends REST_Controller {
         $user_access = $this->_generateAccess(['orders' => $orders, 'user' => $this->user]);
 
         if ($user_access['hasConfirm']) {
-            $this->db->update('orders', ['purchased' => 1, 'readed' => 1], ['entry' => $entry]);
+            $this->db->update('orders', ['purchased' => time(), 'readed' => 1], ['entry' => $entry]);
 
             if ($this->db->affected_rows() > 0) {
+                // update stock
+                $orders = $this->db->get_where('orders', ['entry' => $entry])->result_array();
+                foreach ($orders as $key) {
+                    $queryProduct = "SELECT `products`.`qty` FROM `products` WHERE `products`.`id` = {$key['product_id']}";
+                    $product = $this->db->query($queryProduct)->row_array();
+
+                    $newQty = (int)$product['qty'] - (int)$key['qty'];
+                    $this->db->update('products', ['qty' => $newQty], ['id' => $key['product_id'] ]);
+                }
+
                 $consumer = $this->db->get_where('users', ['id' => $orders[0]['user_id']])->row_array();
 
                 send_notification([
