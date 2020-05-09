@@ -9,11 +9,15 @@ class Administrator_model extends CI_Model
 
 		$selled=0;
 		foreach ($products->result_array() as $p) {
-			$order = $this->db->get_where('orders', [ 'product_id' => $p['id'], 'purchased' => 1 ]);
+			$this->db->where('product_id', $p['id']);
+			$this->db->where('purchased >', 0);
+			$order = $this->db->get('orders');
 			if ($order->num_rows() > 0 && (int)$p['qty'] == 0) $selled += 1;
         }
-        
-        $order = $this->db->group_by('entry')->get_where('orders', ['purchased' => 0, 'deleted'	=> 0])->num_rows();
+		
+		$this->db->where('purchased <', 1);
+		$this->db->where('deleted', 0);
+        $order = $this->db->group_by('entry')->get('orders')->num_rows();
         $product = $products->num_rows();
 
         return [
