@@ -276,12 +276,7 @@ class Users extends REST_Controller {
             ], REST_Controller::HTTP_BAD_REQUEST);
         }
 
-        if ($user['role_id'] == 1) {
-            $rules = ['id' => $id];
-        }
-        if ($user['role_id'] == 2) {
-            $rules = ['username' => $username];
-        }
+        $rules = ['username' => $username];
 
         $this->db->update('users', $data, $rules);
 
