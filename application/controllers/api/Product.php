@@ -255,6 +255,17 @@ class Product extends REST_Controller
 
     public function statistics_get()
     {
+        $this->load->helper('client');
+
+        $user = basic_auth();
+        
+        if ($user['role_id'] > 1) {
+            $this->response([
+                'status' => false,
+                'message' => 'Something went wrong'
+            ], REST_Controller::HTTP_BAD_REQUEST);
+        }
+
         $this->load->model('Administrator_model', 'admin');
 
         $data = [
