@@ -32,7 +32,9 @@ class Product_model extends CI_Model {
 
 	public function selled($id)
 	{
-		$order = $this->db->get_where('orders', [ 'product_id' => $id, 'purchased' => 1 ])->result_array();
+		$this->db->where('product_id', $id);
+		$this->db->where('purchased <', 1);
+		$order = $this->db->get('orders')->result_array();
         $_n=0;
         foreach ($order as $r) {
             $_n += $r['qty'];
